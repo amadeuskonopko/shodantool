@@ -4,7 +4,7 @@
 # todo: check for existence of packges
 
 # todo: check for empty API_KEY
-API_KEY=""
+API_KEY=$(cat apikey)
 
 function usage {
 USAGE="$1 -c,--country [2 letter country code] -p,--product [shodan product filter] -v,--version [filter for IPv4,IPv6 address] --date [Epoch time]  --string,-s [search term] --output,-o [save output to file]\r\n\r\nexample: $0 -c CA -p 'Android Debug Bridge' -v 4 -o android-devices.txt"
