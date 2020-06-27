@@ -119,13 +119,13 @@ for i in $(seq 1 $NUM_PAGES)
     do
         # get page, if there's an error, try again
 	# todo: quit after certain amount of attempts
-        PAGE_ERROR="TRUE"
-        while [[ $PAGE_ERROR ]];
+        PAGE_ERROR="true"
+        while [[ $PAGE_ERROR == "true" ]];
         do
         echo "[*] Getting page $i of $NUM_PAGES"
 	curlCmd="curl -s -G $SHODAN_ENDPOINT_SEARCH --data-urlencode "key=$API_KEY" --data-urlencode "$QUERY" --data-urlencode "page=$i""
         RESULTS=$(eval $curlCmd)
-        PAGE_ERROR=$(echo $RESULTS | jq -c '.error | if(.|test("The search request timed out or your query was invalid")) then . else empty end' 2> /dev/null)
+	PAGE_ERROR=$(echo $RESULTS | jq '.|has("error")')
         done
 	
 	echo $RESULTS | jq '.matches[]' >> $SHODAN_OUT
