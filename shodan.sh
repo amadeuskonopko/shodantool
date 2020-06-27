@@ -75,59 +75,57 @@ if [[ $? == 0 ]]; then
 fi
 
 # add a string you want to search for
-echo $string| grep -qP "^[A-Za-z0-9 ]{1,20}$"
+echo $string| grep -qP "^[A-Za-z0-9 ]{1,99}$"
 if [[ $? == 0 ]]; then 
 	QUERY+=" \"$string\""
 fi
 
+QUERY+="'"
+
 # save the output to file 
-echo $output| grep -qP "^[A-Za-z0-9_/.-]{1,30}$"
+echo $output| grep -qP "^[A-Za-z0-9_/.-]{1,99}$"
 if [[ $? == 0 ]]; then 
 	SHODAN_OUT=$output
 else
 	SHODAN_OUT="shodan-tool-$(date +%s).json"
 fi
 
-echo "[*] Saving file to $SHODAN_OUT"
-
-QUERY+="'"
 echo "[*] Searching Shodan with the query: $QUERY"
 
 SHODAN_ENDPOINT_COUNT="https://api.shodan.io/shodan/host/count"
 SHODAN_ENDPOINT_SEARCH="https://api.shodan.io/shodan/host/search"
-SHODAN_ENDPOINT_SEARCH_FACETS="https://api.shodan.io/shodan/host/search/facets"
-FACETS="facets=org:10000"
-
+FACETS="facets=country:10000"
 curlCmd="curl -s -G $SHODAN_ENDPOINT_COUNT --data-urlencode "key=$API_KEY" --data-urlencode "$QUERY" --data-urlencode $FACETS"
 RESP_COUNT=$(eval $curlCmd)
 TOTAL_HITS=$( echo $RESP_COUNT | jq '.total')
 
-echo "[*] Found $TOTAL_HITS hits for query $QUERY"
+echo "[*] Found $TOTAL_HITS hits."
 
 NUM_PAGES=$(echo "$TOTAL_HITS / 100" | bc)
-
 REMAINDER=$(echo "$TOTAL_HITS % 100" | bc)
 
 if [[ $REMAINDER -gt '0' ]] 
-    then
-        NUM_PAGES=$(echo "$NUM_PAGES + 1" | bc)
+	then
+	NUM_PAGES=$(echo "$NUM_PAGES + 1" | bc)
 fi
 
-echo "[*] Outputting results to $SHODAN_OUT"
+echo "[*] Saving as $SHODAN_OUT"
 
 for i in $(seq 1 $NUM_PAGES)
-    do
-        # get page, if there's an error, try again
-	# todo: quit after certain amount of attempts
-        PAGE_ERROR="true"
-        while [[ $PAGE_ERROR == "true" ]];
-        do
-        echo "[*] Getting page $i of $NUM_PAGES"
-	curlCmd="curl -s -G $SHODAN_ENDPOINT_SEARCH --data-urlencode "key=$API_KEY" --data-urlencode "$QUERY" --data-urlencode "page=$i""
-        RESULTS=$(eval $curlCmd)
-	PAGE_ERROR=$(echo $RESULTS | jq '.|has("error")')
-        done
-	
-	echo $RESULTS | jq '.matches[]' >> $SHODAN_OUT
-        sleep 1
-    done
+	do
+		# get page, if there's an error, try again
+		# todo: quit after certain amount of attempts
+      		PAGE_ERROR="true"
+       		while [[ $PAGE_ERROR == "true" ]];
+		do
+        		echo "[*] Getting page $i of $NUM_PAGES"
+			curlCmd="curl -s -G $SHODAN_ENDPOINT_SEARCH --data-urlencode "key=$API_KEY" --data-urlencode "$QUERY" --data-urlencode "page=$i""
+        		RESULTS=$(eval $curlCmd)
+			PAGE_ERROR=$(echo $RESULTS | jq '.|has("error")')
+        	done
+
+		echo $RESULTS | jq '.matches[]' >> $SHODAN_OUT
+		sleep 2
+	done
+
+echo "[*] Done!"
