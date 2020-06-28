@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# requires packages bc and jq
-# todo: check for existence of packges
+
 
 # todo: check for empty API_KEY
 API_KEY=$(cat apikey)
@@ -11,6 +10,19 @@ USAGE="$1 -c,--country [2 letter country code] -p,--product [shodan product filt
 echo -e $USAGE
 exit 1
 }
+
+# requires packages bc and jq
+which jq > /dev/null
+if [[ $? -eq '1' ]]; then
+	echo "[*] please install package jq"
+	usage $0
+fi
+
+which bc > /dev/null
+if [[ $? -eq '1' ]]; then
+	echo "[*] please install package bc"
+	usage $0
+fi
 
 # Parse arguments
 args=$*
@@ -54,7 +66,7 @@ if [[ $? == 0 ]]; then
 	QUERY+=" country:$country"
 else
 	echo "[*] Invalid Country Code: $country"
-	usage $0
+	#usage $0
 fi
 
 # filter for ipv4/ipv6 
@@ -99,33 +111,41 @@ curlCmd="curl -s -G $SHODAN_ENDPOINT_COUNT --data-urlencode "key=$API_KEY" --dat
 RESP_COUNT=$(eval $curlCmd)
 TOTAL_HITS=$( echo $RESP_COUNT | jq '.total')
 
+if [[ $TOTAL_HITS -le 0 ]]; then
+	echo "[*] $TOTAL_HITS hits found."
+	exit 1
+fi
+
 echo "[*] Found $TOTAL_HITS hits."
 
 NUM_PAGES=$(echo "$TOTAL_HITS / 100" | bc)
 REMAINDER=$(echo "$TOTAL_HITS % 100" | bc)
 
-if [[ $REMAINDER -gt '0' ]] 
-	then
+if [[ $REMAINDER -gt '0' ]]; then
 	NUM_PAGES=$(echo "$NUM_PAGES + 1" | bc)
 fi
 
 echo "[*] Saving as $SHODAN_OUT"
 
-for i in $(seq 1 $NUM_PAGES)
+for i in $(seq 1 $NUM_PAGES);
 	do
-		# get page, if there's an error, try again
-		# todo: quit after certain amount of attempts
-      		PAGE_ERROR="true"
-       		while [[ $PAGE_ERROR == "true" ]];
-		do
-        		echo "[*] Getting page $i of $NUM_PAGES"
-			curlCmd="curl -s -G $SHODAN_ENDPOINT_SEARCH --data-urlencode "key=$API_KEY" --data-urlencode "$QUERY" --data-urlencode "page=$i""
-        		RESULTS=$(eval $curlCmd)
-			PAGE_ERROR=$(echo $RESULTS | jq '.|has("error")')
-        	done
-
-		echo $RESULTS | jq '.matches[]' >> $SHODAN_OUT
-		sleep 2
+		RETRY=0
+		# get page, if there's an error, try again up to 5 times
+		PAGE_ERROR="true"
+		while [[ $PAGE_ERROR == "true" ]];
+			do
+				echo "[*] Getting page $i of $NUM_PAGES";
+				curlCmd="curl -s -G $SHODAN_ENDPOINT_SEARCH --data-urlencode "key=$API_KEY" --data-urlencode "$QUERY" --data-urlencode "page=$i""
+				RESULTS=$(eval $curlCmd)
+				PAGE_ERROR=$(echo $RESULTS | jq '.|has("error")')
+				echo $RESULTS | jq '.|if(has("matches")) then .matches[] else empty end' >> $SHODAN_OUT
+				RETRY=$(echo "$RETRY + 1" | bc)
+				if [[ $RETRY -ge 5 ]]; then
+					echo "[*] retry limit exceeded... quitting"
+					exit 1
+				fi
+				sleep 2
+			done
 	done
 
 echo "[*] Done!"
